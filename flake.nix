@@ -19,7 +19,7 @@
         "aarch64-linux"
         "aarch64-darwin"
       ];
-      perSystem = { self', pkgs, lib, ... }: {
+      perSystem = { self', pkgs, ... }: {
         packages.age = (inputs.wrapper-manager.lib {
           inherit pkgs;
           modules = [
@@ -49,7 +49,7 @@
 
         devShells.default = pkgs.mkShell {
           buildInputs = builtins.attrValues {
-            inherit (pkgs) go gopls go-tools;
+            inherit (pkgs) go gopls go-tools bitwarden-cli;
             inherit (self'.packages) age age-plugin-1p;
           };
         };

@@ -16,6 +16,7 @@ type PluginOptions struct {
 	AgePlugin       string
 	Convert         bool
 	Generate        string
+	Manager         string
 	OutputFile      string
 	LogFile         string
 	PrintRecipients bool
@@ -31,16 +32,17 @@ var example = `
   Hello World`
 
 var (
+	pwManager     plugin.PwManager
 	pluginOptions = PluginOptions{}
 	rootCmd       = &cobra.Command{
-		Use:     "age-plugin-1p",
-		Long:    "age-plugin-1p is a tool to generate age compatible identities backed by SSH keys stored in 1Password.",
+		Use:     "age-plugin-pwmanager",
+		Long:    "age-plugin-pwm is a tool to generate age compatible identities backed by SSH keys stored in a password manager",
 		Example: example,
 		RunE:    RunPlugin,
 	}
 )
 
-func SetLogger() {
+func getLogger() io.Writer {
 	var w io.Writer
 	if pluginOptions.LogFile != "" {
 		w, _ = os.Open(pluginOptions.LogFile)
@@ -49,13 +51,15 @@ func SetLogger() {
 	} else {
 		w = io.Discard
 	}
-	plugin.SetLogger(w)
+
+	return w
+
 }
 
 func RunCli(cmd *cobra.Command, in io.Reader, out io.Writer) error {
 	switch {
 	case pluginOptions.PrintRecipients:
-		output, err := plugin.MarshalAllRecipients()
+		output, err := pwManager.MarshalAllRecipients()
 		if err != nil {
 			return err
 		}
@@ -71,7 +75,7 @@ func RunCli(cmd *cobra.Command, in io.Reader, out io.Writer) error {
 			out = f
 		}
 
-		identity, err := plugin.CreateIdentityFromPath(pluginOptions.Generate)
+		identity, err := pwManager.CreateIdentityFromPath(pluginOptions.Generate)
 		if err != nil {
 			return err
 		}
@@ -80,7 +84,7 @@ func RunCli(cmd *cobra.Command, in io.Reader, out io.Writer) error {
 			return err
 		}
 	case pluginOptions.Convert:
-		identity, err := plugin.ParseIdentity(in)
+		identity, err := pwManager.ParseIdentity(in)
 		if err != nil {
 			return err
 		}
@@ -109,7 +113,7 @@ func RunPlugin(cmd *cobra.Command, args []string) error {
 			return r, nil
 		})
 		p.HandleIdentityAsRecipient(func(data []byte) (age.Recipient, error) {
-			i, err := plugin.DecodeIdentity(page.EncodeIdentity(plugin.PluginName, data))
+			i, err := pwManager.DecodeIdentity(page.EncodeIdentity(plugin.PluginName, data))
 			if err != nil {
 				return nil, err
 			}
@@ -127,10 +131,10 @@ func RunPlugin(cmd *cobra.Command, args []string) error {
 		p.HandleIdentity(func(data []byte) (age.Identity, error) {
 			// someone passed the default identity using `age --decrypt -j op`
 			if data == nil {
-				return plugin.NewDefaultIdentity()
+				return pwManager.NewDefaultIdentity()
 			}
 
-			i, err := plugin.DecodeIdentity(page.EncodeIdentity(plugin.PluginName, data))
+			i, err := pwManager.DecodeIdentity(page.EncodeIdentity(plugin.PluginName, data))
 			if err != nil {
 				return nil, err
 			}
@@ -158,12 +162,14 @@ func pluginFlags(cmd *cobra.Command, opts *PluginOptions) {
 	flags := cmd.Flags()
 	flags.SortFlags = false
 
-	flags.BoolVar(&opts.PrintRecipients, "print-recipients", false, "Print all the public keys in 1Password")
+	flags.BoolVar(&opts.PrintRecipients, "print-recipients", false, "Print all the public keys in the manager")
 
 	flags.BoolVarP(&opts.Convert, "convert", "y", false, "Print recipient for identity file passed through stdin")
 	flags.StringVarP(&opts.OutputFile, "output", "o", "", "Write the result to the file at path `OUTPUT`")
 
 	flags.StringVarP(&opts.Generate, "generate", "g", "", "Generate an identity file for SSH key at 1Password CLI `REFERENCE` e.g. \"op://vault/item/private key\"")
+
+	flags.StringVarP(&opts.Manager, "manager", "m", "1password", "Use MANAGER as backend")
 
 	flags.StringVar(&opts.LogFile, "log-file", "", "Write logs to `FILE`")
 
@@ -172,9 +178,17 @@ func pluginFlags(cmd *cobra.Command, opts *PluginOptions) {
 }
 
 func main() {
-	SetLogger()
+
+	logger := getLogger()
+
 	pluginFlags(rootCmd, &pluginOptions)
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatal(err)
+	}
+
+	if b, err := plugin.NewManager(pluginOptions.Manager, logger); err != nil {
+		log.Fatal(err)
+	} else {
+		pwManager = b
 	}
 }

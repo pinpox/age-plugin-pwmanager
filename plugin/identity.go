@@ -1,7 +1,6 @@
 package plugin
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/binary"
 	"fmt"
@@ -22,9 +21,7 @@ type Identity struct {
 }
 
 func (i *Identity) Serialize() []any {
-	return []interface{}{
-		&i.Version,
-	}
+	return []any{&i.Version}
 }
 
 func (i *Identity) Recipient() *Recipient {
@@ -71,60 +68,6 @@ func NewIdentity(privateKey []byte) (*Identity, error) {
 	}
 
 	return identity, nil
-}
-
-func DecodeIdentity(s string) (*Identity, error) {
-	var key Identity
-	name, b, err := page.ParseIdentity(s)
-	if err != nil {
-		return nil, err
-	}
-	if name != PluginName {
-		return nil, fmt.Errorf("invalid hrp")
-	}
-	r := bytes.NewBuffer(b)
-	for _, f := range key.Serialize() {
-		if err := binary.Read(r, binary.BigEndian, f); err != nil {
-			return nil, err
-		}
-	}
-
-	publicKey, err := ssh.ParsePublicKey(r.Bytes())
-	if err != nil {
-		return nil, err
-	}
-
-	key.PubKey = publicKey
-
-	privateKey, err := ReadKeyFromPubKeyOp(publicKey)
-	if err != nil {
-		return nil, err
-	}
-
-	key.privateKey = privateKey
-
-	return &key, nil
-}
-
-func ParseIdentity(f io.Reader) (*Identity, error) {
-	// Same parser as age
-	const privateKeySizeLimit = 1 << 24 // 16 MiB
-	scanner := bufio.NewScanner(io.LimitReader(f, privateKeySizeLimit))
-	var n int
-	for scanner.Scan() {
-		n++
-		line := scanner.Text()
-		if strings.HasPrefix(line, "#") || line == "" {
-			continue
-		}
-
-		identity, err := DecodeIdentity(line)
-		if err != nil {
-			return nil, fmt.Errorf("error at line %d: %v", n, err)
-		}
-		return identity, nil
-	}
-	return nil, fmt.Errorf("no identities found")
 }
 
 func EncodeIdentity(i *Identity) string {
