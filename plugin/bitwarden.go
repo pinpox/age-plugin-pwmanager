@@ -2,6 +2,8 @@ package plugin
 
 import (
 	"bufio"
+	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,67 +11,38 @@ import (
 	"log"
 	"os/exec"
 	"strings"
+
+	page "filippo.io/age/plugin"
+	"golang.org/x/crypto/ssh"
 )
 
 type Bitwarden struct{}
 
-// To get all ssh keys in the bitwarden vault:
-// bw list items | jq '[.[] | select(.type == 5)]'
-
-// To get a key by name or id from the bitwarden vault:
-// bw get item pinpox@bitwarden
-
 type BwSshItem struct {
-	// PasswordHistory interface{} `json:"passwordHistory"`
-	// RevisionDate    time.Time   `json:"revisionDate"`
-	// CreationDate    time.Time   `json:"creationDate"`
-	// DeletedDate     interface{} `json:"deletedDate"`
-	// Object          string      `json:"object"`
-	ID string `json:"id"`
-	// OrganizationID  interface{} `json:"organizationId"`
-	// FolderID        interface{} `json:"folderId"`
-	Type int `json:"type"`
-	// Reprompt        int         `json:"reprompt"`
-	Name string `json:"name"`
-	// Notes           interface{} `json:"notes"`
-	// Favorite        bool        `json:"favorite"`
+	ID     string `json:"id"`
+	Type   int    `json:"type"`
+	Name   string `json:"name"`
 	SSHKey struct {
 		PrivateKey     string `json:"privateKey"`
 		PublicKey      string `json:"publicKey"`
 		KeyFingerprint string `json:"keyFingerprint"`
 	} `json:"sshKey"`
+	// PasswordHistory interface{} `json:"passwordHistory"`
+	// RevisionDate    time.Time   `json:"revisionDate"`
+	// CreationDate    time.Time   `json:"creationDate"`
+	// DeletedDate     interface{} `json:"deletedDate"`
+	// Object          string      `json:"object"`
+	// OrganizationID  interface{} `json:"organizationId"`
+	// FolderID        interface{} `json:"folderId"`
+	// Reprompt        int         `json:"reprompt"`
+	// Notes           interface{} `json:"notes"`
+	// Favorite        bool        `json:"favorite"`
 	// CollectionIds []interface{} `json:"collectionIds"`
 }
 
 func (bwi BwSshItem) toIdentity() (*Identity, error) {
 	return NewIdentity([]byte(bwi.SSHKey.PrivateKey))
 }
-
-// Example test key
-// {
-//   "passwordHistory": null,
-//   "revisionDate": "2025-04-05T11:38:32.253Z",
-//   "creationDate": "2025-04-05T11:38:32.252Z",
-//   "deletedDate": null,
-//   "object": "item",
-//   "id": "ce3e36d1-271c-4019-9679-3244c41797e7",
-//   "organizationId": null,
-//   "folderId": null,
-//   "type": 5,
-//   "reprompt": 0,
-//   "name": "testkey@bitwarden",
-//   "notes": null,
-//   "favorite": false,
-//   "sshKey": {
-//     "privateKey": "-----BEGIN OPENSSH PRIVATE KEY-----\nb3...lF\n-----END OPENSSH PRIVATE KEY-----\n",
-//     "publicKey": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDB4WccXD32kcOUzyYgcT3b5yzwsD71U0yorjN4O4d6m",
-//     "keyFingerprint": "SHA256:0dRkX4RpEIbWWnWRZbQwqbEMd1yrPlUT/iYTelwQQHc"
-//   },
-//   "collectionIds": []
-// }
-
-// or:
-// bw get item 9f08782a-209a-4d31-b1bf-8aa05a6233a0
 
 func (bw Bitwarden) BwSshItems() (items []BwSshItem, err error) {
 
@@ -100,9 +73,47 @@ func (bw Bitwarden) BwSshItems() (items []BwSshItem, err error) {
 
 func (bw Bitwarden) DecodeIdentity(pluginIdentityString string) (*Identity, error) {
 	log.Println("Trying to decode string:", pluginIdentityString)
-	// TODO implement
-	// Used by main
-	return nil, nil
+
+	var key Identity
+
+	name, b, err := page.ParseIdentity(pluginIdentityString)
+	if err != nil {
+		return nil, err
+	}
+	if name != PluginName {
+		return nil, fmt.Errorf("invalid hrp")
+	}
+	r := bytes.NewBuffer(b)
+	for _, f := range key.Serialize() {
+		if err := binary.Read(r, binary.BigEndian, f); err != nil {
+			return nil, err
+		}
+	}
+
+	publicKey, err := ssh.ParsePublicKey(r.Bytes())
+	if err != nil {
+		return nil, err
+	}
+
+	key.PubKey = publicKey
+
+	keys, err := bw.BwSshItems()
+	if err != nil {
+		return nil, err
+	}
+
+	// Get fingerprint of public key and try to find it in the vault
+	fingerprint := ssh.FingerprintSHA256(publicKey)
+	Log.Printf("fingerprint=%s", fingerprint)
+
+	for _, k := range keys {
+		if fingerprint == k.SSHKey.KeyFingerprint {
+			key.privateKey = []byte(k.SSHKey.PrivateKey)
+			return &key, nil
+		}
+	}
+
+	return nil, errors.New("Unable to find key")
 }
 
 func (bw Bitwarden) NewDefaultIdentity() (*DefaultIdentity, error) {
@@ -127,10 +138,6 @@ func (bw Bitwarden) NewDefaultIdentity() (*DefaultIdentity, error) {
 	return d, nil
 }
 
-// MarshalAllRecipients returns all recipients (public keys) from the vault in
-// a readable format, e.g.:
-// f441244b-cba4-403e-92dc-b00b3bd7428b (me@host1): ssh-ed25519 AAAAC3NzaCxxxxxxxxxxxxxxxxxxxxxxx
-// 9fa82648-e32f-4127-acb2-69b052a88485 (me@host2): ssh-ed25519 AAAAC3NzaCxxxxxxxxxxxxxxxxxxxxxxx
 func (bw Bitwarden) MarshalAllRecipients() (out string, err error) {
 
 	var items []BwSshItem
