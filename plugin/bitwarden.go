@@ -2,9 +2,11 @@ package plugin
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
+	"os/exec"
 	"strings"
 )
 
@@ -34,11 +36,15 @@ type BwSshItem struct {
 	// Notes           interface{} `json:"notes"`
 	// Favorite        bool        `json:"favorite"`
 	SSHKey struct {
-		PrivateKey     string `json:"privateKey"`
-		PublicKey      string `json:"publicKey"`
-		KeyFingerprint string `json:"keyFingerprint"`
+		PrivateKey     []byte `json:"privateKey"`
+		PublicKey      []byte `json:"publicKey"`
+		KeyFingerprint []byte `json:"keyFingerprint"`
 	} `json:"sshKey"`
 	// CollectionIds []interface{} `json:"collectionIds"`
+}
+
+func (bwi BwSshItem) toIdentity() (*Identity, error) {
+	return NewIdentity(bwi.SSHKey.PrivateKey)
 }
 
 // Example test key
@@ -80,9 +86,37 @@ func (bw Bitwarden) NewDefaultIdentity() (*DefaultIdentity, error) {
 	return nil, nil
 }
 
+// Print
 func (bw Bitwarden) MarshalAllRecipients() (out string, err error) {
-	// TODO implement
-	return "", nil
+
+	cmd := exec.Command("bw", "list", "items")
+	// | jq '[.[] | select(.type == 5)]'
+
+	output, err := cmd.Output()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Parse JSON
+	var items []BwSshItem
+
+	if err := json.Unmarshal(output, &items); err != nil {
+		log.Fatal(err)
+	}
+
+	// Filter for "type = 5" (The SSH-Key type in bitwarden)
+	for _, item := range items {
+		if item.Type == 5 {
+			if identity, err := item.toIdentity(); err != nil {
+				return "", err
+			} else {
+				out += fmt.Sprintf("%s: %s\n", item.ID, identity.Recipient())
+			}
+
+		}
+	}
+
+	return out, nil
 }
 
 func (bw Bitwarden) CreateIdentityFromPath(privateKeyPath string) (*Identity, error) {

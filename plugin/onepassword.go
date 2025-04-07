@@ -161,7 +161,7 @@ func (opw OnePassword) ReadKeyFromPubKey(pubKey ssh.PublicKey) (privateKey []byt
 		additional_information := item["additional_information"].(string)
 
 		if additional_information == fingerprint {
-			vault := item["vault"].(map[string]interface{})
+			vault := item["vault"].(map[string]any)
 			privateKeyPath = fmt.Sprintf("op://%s/%s/private key", vault["id"], item["id"])
 			break
 		}
@@ -195,7 +195,7 @@ func (opw OnePassword) ReadAllKeys() (privateKeyFromOpRef map[string][]byte, err
 	privateKeyFromOpRef = make(map[string][]byte)
 
 	for {
-		var item map[string]interface{}
+		var item map[string]any
 		err := decoder.Decode(&item)
 		if err == io.EOF {
 			break
