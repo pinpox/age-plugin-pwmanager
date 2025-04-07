@@ -36,15 +36,15 @@ type BwSshItem struct {
 	// Notes           interface{} `json:"notes"`
 	// Favorite        bool        `json:"favorite"`
 	SSHKey struct {
-		PrivateKey     []byte `json:"privateKey"`
-		PublicKey      []byte `json:"publicKey"`
-		KeyFingerprint []byte `json:"keyFingerprint"`
+		PrivateKey     string `json:"privateKey"`
+		PublicKey      string `json:"publicKey"`
+		KeyFingerprint string `json:"keyFingerprint"`
 	} `json:"sshKey"`
 	// CollectionIds []interface{} `json:"collectionIds"`
 }
 
 func (bwi BwSshItem) toIdentity() (*Identity, error) {
-	return NewIdentity(bwi.SSHKey.PrivateKey)
+	return NewIdentity([]byte(bwi.SSHKey.PrivateKey))
 }
 
 // Example test key
@@ -89,19 +89,21 @@ func (bw Bitwarden) NewDefaultIdentity() (*DefaultIdentity, error) {
 // Print
 func (bw Bitwarden) MarshalAllRecipients() (out string, err error) {
 
-	cmd := exec.Command("bw", "list", "items")
+	cmd := exec.Command("bw", "list", "items", "--raw")
 	// | jq '[.[] | select(.type == 5)]'
 
 	output, err := cmd.Output()
 	if err != nil {
-		log.Fatal(err)
+		log.Println("Error executing bw-cli")
+		return "", err
 	}
 
 	// Parse JSON
-	var items []BwSshItem
+	var items []BwSshItem = []BwSshItem{}
 
 	if err := json.Unmarshal(output, &items); err != nil {
-		log.Fatal(err)
+		log.Println("Error parsing bw output", string(output))
+		return "", err
 	}
 
 	// Filter for "type = 5" (The SSH-Key type in bitwarden)
