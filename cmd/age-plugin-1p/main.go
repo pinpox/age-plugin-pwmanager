@@ -34,12 +34,6 @@ var example = `
 var (
 	pwManager     plugin.PwManager
 	pluginOptions = PluginOptions{}
-	rootCmd       = &cobra.Command{
-		Use:     "age-plugin-pwmanager",
-		Long:    "age-plugin-pwm is a tool to generate age compatible identities backed by SSH keys stored in a password manager",
-		Example: example,
-		RunE:    RunPlugin,
-	}
 )
 
 func getLogger() io.Writer {
@@ -59,6 +53,9 @@ func getLogger() io.Writer {
 func RunCli(cmd *cobra.Command, in io.Reader, out io.Writer) error {
 	switch {
 	case pluginOptions.PrintRecipients:
+
+		log.Println("Printing recipients")
+
 		output, err := pwManager.MarshalAllRecipients()
 		if err != nil {
 			return err
@@ -98,9 +95,18 @@ func RunCli(cmd *cobra.Command, in io.Reader, out io.Writer) error {
 
 func RunPlugin(cmd *cobra.Command, args []string) error {
 
+	var err error
+	logger := getLogger()
+
+	if pwManager, err = plugin.NewManager(pluginOptions.Manager, logger); err != nil {
+		log.Fatal(err)
+	}
+
 	switch pluginOptions.AgePlugin {
 	case "recipient-v1":
-		plugin.Log.Println("Got recipient-v1")
+
+		log.Println("Got recipient-v1")
+
 		p, err := page.New(plugin.PluginName)
 		if err != nil {
 			return err
@@ -123,7 +129,9 @@ func RunPlugin(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("age-plugin exited with code %d", exitCode)
 		}
 	case "identity-v1":
-		plugin.Log.Println("Got identity-v1")
+
+		log.Println("Got identity-v1")
+
 		p, err := page.New(plugin.PluginName)
 		if err != nil {
 			return err
@@ -169,26 +177,29 @@ func pluginFlags(cmd *cobra.Command, opts *PluginOptions) {
 
 	flags.StringVarP(&opts.Generate, "generate", "g", "", "Generate an identity file for SSH key at 1Password CLI `REFERENCE` e.g. \"op://vault/item/private key\"")
 
-	flags.StringVarP(&opts.Manager, "manager", "m", "1password", "Use MANAGER as backend")
+	flags.StringVarP(&opts.Manager, "manager", "m", "", "Use MANAGER as backend")
 
 	flags.StringVar(&opts.LogFile, "log-file", "", "Write logs to `FILE`")
 
 	flags.StringVar(&opts.AgePlugin, "age-plugin", "", "internal use")
 	flags.MarkHidden("age-plugin")
+
 }
 
 func main() {
 
-	logger := getLogger()
+	rootCmd := &cobra.Command{
+		Use:     "age-plugin-pwmanager",
+		Long:    "age-plugin-pwm is a tool to generate age compatible identities backed by SSH keys stored in a password manager",
+		Example: example,
+		RunE:    RunPlugin,
+	}
 
 	pluginFlags(rootCmd, &pluginOptions)
+
 	if err := rootCmd.Execute(); err != nil {
+		log.Println("manager is", pluginOptions.Manager)
 		log.Fatal(err)
 	}
 
-	if b, err := plugin.NewManager(pluginOptions.Manager, logger); err != nil {
-		log.Fatal(err)
-	} else {
-		pwManager = b
-	}
 }
