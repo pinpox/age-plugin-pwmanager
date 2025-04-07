@@ -8,7 +8,7 @@ import (
 
 	"filippo.io/age"
 	page "filippo.io/age/plugin"
-	"github.com/Enzime/age-plugin-1p/plugin"
+	"github.com/pinpox/age-plugin-pwmanager/plugin"
 	"github.com/spf13/cobra"
 )
 
@@ -16,14 +16,13 @@ type PluginOptions struct {
 	AgePlugin       string
 	Convert         bool
 	Generate        string
-	Manager         string
 	OutputFile      string
 	LogFile         string
 	PrintRecipients bool
 }
 
 var example = `
-  $ age-plugin-1p --print-recipients
+  $ age-plugin-manager --print-recipients
   op://Personal/SSH key/public key: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINKZfejb9htpSB5K9p0RuEowErkba2BMKaze93ZVkQIE
 
   $ echo "Hello World" | age -r "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINKZfejb9htpSB5K9p0RuEowErkba2BMKaze93ZVkQIE" > secret.age
@@ -98,7 +97,7 @@ func RunPlugin(cmd *cobra.Command, args []string) error {
 	var err error
 	logger := getLogger()
 
-	if pwManager, err = plugin.NewManager(pluginOptions.Manager, logger); err != nil {
+	if pwManager, err = plugin.NewManager(logger); err != nil {
 		log.Fatal(err)
 	}
 
@@ -121,6 +120,7 @@ func RunPlugin(cmd *cobra.Command, args []string) error {
 		p.HandleIdentityAsRecipient(func(data []byte) (age.Recipient, error) {
 			i, err := pwManager.DecodeIdentity(page.EncodeIdentity(plugin.PluginName, data))
 			if err != nil {
+				log.Println("Error decoding identity")
 				return nil, err
 			}
 			return i.Recipient(), nil
@@ -131,14 +131,15 @@ func RunPlugin(cmd *cobra.Command, args []string) error {
 	case "identity-v1":
 
 		log.Println("Got identity-v1")
-
 		p, err := page.New(plugin.PluginName)
 		if err != nil {
 			return err
 		}
 		p.HandleIdentity(func(data []byte) (age.Identity, error) {
+			log.Println("someone passed default identity")
 			// someone passed the default identity using `age --decrypt -j op`
 			if data == nil {
+				log.Println("NO DATA")
 				return pwManager.NewDefaultIdentity()
 			}
 
@@ -177,8 +178,6 @@ func pluginFlags(cmd *cobra.Command, opts *PluginOptions) {
 
 	flags.StringVarP(&opts.Generate, "generate", "g", "", "Generate an identity file for SSH key at 1Password CLI `REFERENCE` e.g. \"op://vault/item/private key\"")
 
-	flags.StringVarP(&opts.Manager, "manager", "m", "", "Use MANAGER as backend")
-
 	flags.StringVar(&opts.LogFile, "log-file", "", "Write logs to `FILE`")
 
 	flags.StringVar(&opts.AgePlugin, "age-plugin", "", "internal use")
@@ -198,7 +197,6 @@ func main() {
 	pluginFlags(rootCmd, &pluginOptions)
 
 	if err := rootCmd.Execute(); err != nil {
-		log.Println("manager is", pluginOptions.Manager)
 		log.Fatal(err)
 	}
 

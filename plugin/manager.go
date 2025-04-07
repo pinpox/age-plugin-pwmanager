@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 )
 
 const (
@@ -26,14 +27,21 @@ type PwManager interface {
 
 	// DecodeIdentity constructs an Identity from a pluginIdentityString.
 	DecodeIdentity(pluginIdentityString string) (*Identity, error)
+
 	NewDefaultIdentity() (*DefaultIdentity, error)
 
+	// MarshalAllRecipients returns all recipients (public keys) from the vault in
+	// a readable format, e.g.:
+	// f441244b-cba4-403e-92dc-b00b3bd7428b: ssh-ed25519 AAAAC3NzaCxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+	// 9fa82648-e32f-4127-acb2-69b052a88485: ssh-ed25519 AAAAC3NzaCxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 	MarshalAllRecipients() (out string, err error)
 }
 
-func NewManager(backend string, w io.Writer) (PwManager, error) {
+func NewManager(w io.Writer) (PwManager, error) {
 
 	Log = log.New(w, "", log.Lshortfile)
+	backend := os.Getenv("AGE_PW_BACKEND")
+	log.Println("SET BAKCEND", backend)
 
 	switch backend {
 	case "1password":
@@ -43,10 +51,8 @@ func NewManager(backend string, w io.Writer) (PwManager, error) {
 		log.Println("Using Bitwarden as backend")
 		return Bitwarden{}, nil
 	default:
-
-		message := fmt.Sprintf("%s is not a supported manager. Valid options are '1password' and 'bitwarden'", backend)
+		message := fmt.Sprintf("'%s' is not a supported manager. Set AGE_PW_BACKEND to '1password' or 'bitwarden'", backend)
 		return nil, errors.New(message)
-
 	}
 
 }
