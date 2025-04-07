@@ -8,7 +8,7 @@ import (
 
 	"filippo.io/age"
 	page "filippo.io/age/plugin"
-	"github.com/pinpox/age-plugin-pwmanager/plugin"
+	"github.com/Enzyme/age-plugin-pwmanager/plugin"
 	"github.com/spf13/cobra"
 )
 

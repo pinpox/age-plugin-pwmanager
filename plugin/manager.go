@@ -44,7 +44,6 @@ func NewManager(w io.Writer) (PwManager, error) {
 
 	Log = log.New(w, "", log.Lshortfile)
 	backend := os.Getenv("AGE_PW_BACKEND")
-	log.Println("SET BAKCEND", backend)
 
 	switch backend {
 	case "1password":

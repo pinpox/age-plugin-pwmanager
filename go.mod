@@ -1,4 +1,4 @@
-module github.com/pinpox/age-plugin-pwmanager
+module github.com/Enzyme/age-plugin-pwmanager
 
 go 1.20
 
