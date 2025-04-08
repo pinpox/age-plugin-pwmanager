@@ -26,25 +26,9 @@ var (
 	pluginOptions = PluginOptions{}
 )
 
-func getLogger() io.Writer {
-	var w io.Writer
-	if pluginOptions.LogFile != "" {
-		w, _ = os.Open(pluginOptions.LogFile)
-	} else if os.Getenv("AGEDEBUG") != "" {
-		w = os.Stderr
-	} else {
-		w = io.Discard
-	}
-
-	return w
-
-}
-
 func RunCli(cmd *cobra.Command, in io.Reader, out io.Writer) error {
 	switch {
 	case pluginOptions.PrintRecipients:
-
-		log.Println("Printing recipients")
 
 		output, err := pwManager.MarshalAllRecipients()
 		if err != nil {
@@ -88,8 +72,6 @@ func RunPlugin(cmd *cobra.Command, args []string) error {
 	switch pluginOptions.AgePlugin {
 	case "recipient-v1":
 
-		log.Println("Got recipient-v1")
-
 		p, err := page.New(pwManager.PluginName())
 		if err != nil {
 			return err
@@ -114,14 +96,12 @@ func RunPlugin(cmd *cobra.Command, args []string) error {
 		}
 	case "identity-v1":
 
-		log.Println("Got identity-v1")
 		p, err := page.New(pwManager.PluginName())
 		if err != nil {
 			return err
 		}
 		p.HandleIdentity(func(data []byte) (age.Identity, error) {
-			log.Println("someone passed default identity")
-			// someone passed the default identity using `age --decrypt -j op`
+
 			if data == nil {
 				return pwManager.NewDefaultIdentity()
 			}
@@ -155,17 +135,13 @@ func pluginFlags(cmd *cobra.Command, opts *PluginOptions) {
 	flags.SortFlags = false
 
 	flags.BoolVar(&opts.PrintRecipients, "print-recipients", false, "Print all the public keys in the manager")
-
 	flags.BoolVarP(&opts.Convert, "convert", "y", false, "Print recipient for identity file passed through stdin")
 	flags.StringVarP(&opts.OutputFile, "output", "o", "", "Write the result to the file at path `OUTPUT`")
-
 	flags.StringVarP(&opts.Generate, "generate", "g", "", "Generate an identity file for SSH key at 1Password CLI `REFERENCE` e.g. \"op://vault/item/private key\"")
-
 	flags.StringVar(&opts.LogFile, "log-file", "", "Write logs to `FILE`")
-
 	flags.StringVar(&opts.AgePlugin, "age-plugin", "", "internal use")
-	flags.MarkHidden("age-plugin")
 
+	flags.MarkHidden("age-plugin")
 }
 
 func RootCmd(backend PwManager, example string) *cobra.Command {

@@ -117,8 +117,6 @@ func (opw OnePassword) MarshalAllRecipients() (out string, err error) {
 	return
 }
 
-// Additional methods
-
 // ReadKeyFromPath reads a given path/reference inside the password manager and returns the key
 // It is analogous to the CLI command:
 // `op read op://app-prod/db/password`
