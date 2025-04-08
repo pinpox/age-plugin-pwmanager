@@ -1,15 +1,8 @@
-package plugin
+package pwmanager
 
 import (
-	"errors"
-	"fmt"
 	"io"
 	"log"
-	"os"
-)
-
-const (
-	PluginName = "pwmanager"
 )
 
 var (
@@ -38,23 +31,10 @@ type PwManager interface {
 	// f441244b-cba4-403e-92dc-b00b3bd7428b (me@host1): ssh-ed25519 AAAAC3NzaCxxxx...
 	// 9fa82648-e32f-4127-acb2-69b052a88485 (me@host2): ssh-ed25519 AAAAC3NzaCxxxx...
 	MarshalAllRecipients() (out string, err error)
-}
 
-func NewManager(w io.Writer) (PwManager, error) {
+	// FullPluginName returns the name of the plugin, e.g. `age-plugin-1p`
+	FullPluginName() string
 
-	Log = log.New(w, "", log.Lshortfile)
-	backend := os.Getenv("AGE_PW_BACKEND")
-
-	switch backend {
-	case "1password":
-		log.Println("Using 1Password as backend")
-		return OnePassword{}, nil
-	case "bitwarden":
-		log.Println("Using Bitwarden as backend")
-		return Bitwarden{}, nil
-	default:
-		message := fmt.Sprintf("'%s' is not a supported manager. Set AGE_PW_BACKEND to '1password' or 'bitwarden'", backend)
-		return nil, errors.New(message)
-	}
-
+	//PluginName returns the shortened name of the plugin, e.g. `1p`
+	PluginName() string
 }

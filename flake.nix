@@ -44,12 +44,12 @@
           paths = builtins.attrValues {
             inherit (self'.packages) age age-plugin-pwmanager;
           };
-          meta.mainProgram = "age-plugin-pwmanager";
+          # meta.mainProgram = "age-plugin-pwmanager";
         };
 
         devShells.default = pkgs.mkShell {
           buildInputs = builtins.attrValues {
-            inherit (pkgs) go gopls go-tools bitwarden-cli;
+            inherit (pkgs) go gopls go-tools bitwarden-cli _1password-cli;
             inherit (self'.packages) age age-plugin-pwmanager;
           };
         };

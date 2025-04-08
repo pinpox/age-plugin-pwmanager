@@ -1,4 +1,4 @@
-package plugin
+package main
 
 import (
 	"bufio"
@@ -12,22 +12,31 @@ import (
 	"os/exec"
 
 	page "filippo.io/age/plugin"
+	pw "github.com/Enzyme/age-plugin-pwmanager/internal/pwmanager"
 
 	"golang.org/x/crypto/ssh"
 )
 
+func (opw OnePassword) FullPluginName() string {
+	return "age-plugin-1p"
+}
+
+func (opw OnePassword) PluginName() string {
+	return "1p"
+}
+
 type OnePassword struct{}
 
-func (opw OnePassword) CreateIdentityFromPath(privateKeyPath string) (*Identity, error) {
+func (opw OnePassword) CreateIdentityFromPath(privateKeyPath string) (*pw.Identity, error) {
 	privateKey, err := opw.ReadKeyFromPath(privateKeyPath)
 	if err != nil {
 		return nil, err
 	}
 
-	return NewIdentity(privateKey)
+	return pw.NewIdentity(privateKey)
 }
 
-func (opw OnePassword) ParseIdentity(f io.Reader) (*Identity, error) {
+func (opw OnePassword) ParseIdentity(f io.Reader) (*pw.Identity, error) {
 	// Same parser as age
 	const privateKeySizeLimit = 1 << 24 // 16 MiB
 	scanner := bufio.NewScanner(io.LimitReader(f, privateKeySizeLimit))
@@ -48,14 +57,14 @@ func (opw OnePassword) ParseIdentity(f io.Reader) (*Identity, error) {
 	return nil, fmt.Errorf("no identities found")
 }
 
-func (opw OnePassword) DecodeIdentity(pluginIdentityString string) (*Identity, error) {
-	var key Identity
+func (opw OnePassword) DecodeIdentity(pluginIdentityString string) (*pw.Identity, error) {
+	var key pw.Identity
 
 	name, b, err := page.ParseIdentity(pluginIdentityString)
 	if err != nil {
 		return nil, err
 	}
-	if name != PluginName {
+	if name != opw.PluginName() {
 		return nil, fmt.Errorf("invalid hrp")
 	}
 	r := bytes.NewBuffer(b)
@@ -77,18 +86,18 @@ func (opw OnePassword) DecodeIdentity(pluginIdentityString string) (*Identity, e
 		return nil, err
 	}
 
-	key.privateKey = privateKey
+	key.PrivKey = privateKey
 
 	return &key, nil
 }
 
-func (opw OnePassword) NewDefaultIdentity() (*DefaultIdentity, error) {
-	d := new(DefaultIdentity)
+func (opw OnePassword) NewDefaultIdentity() (*pw.DefaultIdentity, error) {
 	identities, err := opw.GetAllIdentities()
 	if err != nil {
 		return nil, err
 	}
-	d.identities = identities
+
+	d := pw.NewDefaultIdentity(identities)
 	return d, nil
 }
 
@@ -98,7 +107,7 @@ func (opw OnePassword) MarshalAllRecipients() (out string, err error) {
 		return "", err
 	}
 	for opRef, privateKey := range privateKeysForOpRef {
-		identity, err := NewIdentity(privateKey)
+		identity, err := pw.NewIdentity(privateKey)
 		if err != nil {
 			return "", err
 		}
@@ -143,7 +152,6 @@ func (opw OnePassword) UnmarshalItemList(output []byte) (items []map[string]any,
 // password manager
 func (opw OnePassword) ReadKeyFromPubKey(pubKey ssh.PublicKey) (privateKey []byte, err error) {
 	fingerprint := ssh.FingerprintSHA256(pubKey)
-	Log.Printf("fingerprint=%s", fingerprint)
 
 	output, err := opw.ListSSHFingerprints()
 	if err != nil {
@@ -210,14 +218,14 @@ func (opw OnePassword) ReadAllKeys() (privateKeyFromOpRef map[string][]byte, err
 	return
 }
 
-func (opw OnePassword) GetAllIdentities() (identities []Identity, err error) {
+func (opw OnePassword) GetAllIdentities() (identities []pw.Identity, err error) {
 	privateKeyForRef, err := opw.ReadAllKeys()
 	if err != nil {
 		return nil, err
 	}
 
 	for _, privateKey := range privateKeyForRef {
-		i, err := NewIdentity(privateKey)
+		i, err := pw.NewIdentity(privateKey)
 		if err != nil {
 			return nil, err
 		}

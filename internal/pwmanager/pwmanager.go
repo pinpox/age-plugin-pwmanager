@@ -1,4 +1,4 @@
-package main
+package pwmanager
 
 import (
 	"fmt"
@@ -7,8 +7,8 @@ import (
 	"os"
 
 	"filippo.io/age"
+
 	page "filippo.io/age/plugin"
-	"github.com/Enzyme/age-plugin-pwmanager/plugin"
 	"github.com/spf13/cobra"
 )
 
@@ -21,17 +21,8 @@ type PluginOptions struct {
 	PrintRecipients bool
 }
 
-var example = `
-  $ age-plugin-manager --print-recipients
-  op://Personal/SSH key/public key: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINKZfejb9htpSB5K9p0RuEowErkba2BMKaze93ZVkQIE
-
-  $ echo "Hello World" | age -r "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINKZfejb9htpSB5K9p0RuEowErkba2BMKaze93ZVkQIE" > secret.age
-
-  $ age --decrypt -j 1p -o - secret.age
-  Hello World`
-
 var (
-	pwManager     plugin.PwManager
+	pwManager     PwManager
 	pluginOptions = PluginOptions{}
 )
 
@@ -85,7 +76,7 @@ func RunCli(cmd *cobra.Command, in io.Reader, out io.Writer) error {
 			return err
 		}
 		recipient := identity.Recipient()
-		return plugin.MarshalRecipient(recipient, out)
+		return MarshalRecipient(recipient, out)
 	default:
 		return cmd.Help()
 	}
@@ -94,31 +85,24 @@ func RunCli(cmd *cobra.Command, in io.Reader, out io.Writer) error {
 
 func RunPlugin(cmd *cobra.Command, args []string) error {
 
-	var err error
-	logger := getLogger()
-
-	if pwManager, err = plugin.NewManager(logger); err != nil {
-		log.Fatal(err)
-	}
-
 	switch pluginOptions.AgePlugin {
 	case "recipient-v1":
 
 		log.Println("Got recipient-v1")
 
-		p, err := page.New(plugin.PluginName)
+		p, err := page.New(pwManager.PluginName())
 		if err != nil {
 			return err
 		}
 		p.HandleRecipient(func(data []byte) (age.Recipient, error) {
-			r, err := plugin.DecodeRecipient(page.EncodeRecipient(plugin.PluginName, data))
+			r, err := DecodeRecipient(page.EncodeRecipient(pwManager.PluginName(), data))
 			if err != nil {
 				return nil, err
 			}
 			return r, nil
 		})
 		p.HandleIdentityAsRecipient(func(data []byte) (age.Recipient, error) {
-			i, err := pwManager.DecodeIdentity(page.EncodeIdentity(plugin.PluginName, data))
+			i, err := pwManager.DecodeIdentity(page.EncodeIdentity(pwManager.PluginName(), data))
 			if err != nil {
 				log.Println("Error decoding identity")
 				return nil, err
@@ -131,7 +115,7 @@ func RunPlugin(cmd *cobra.Command, args []string) error {
 	case "identity-v1":
 
 		log.Println("Got identity-v1")
-		p, err := page.New(plugin.PluginName)
+		p, err := page.New(pwManager.PluginName())
 		if err != nil {
 			return err
 		}
@@ -143,7 +127,7 @@ func RunPlugin(cmd *cobra.Command, args []string) error {
 				return pwManager.NewDefaultIdentity()
 			}
 
-			i, err := pwManager.DecodeIdentity(page.EncodeIdentity(plugin.PluginName, data))
+			i, err := pwManager.DecodeIdentity(page.EncodeIdentity(pwManager.PluginName(), data))
 			if err != nil {
 				return nil, err
 			}
@@ -185,19 +169,18 @@ func pluginFlags(cmd *cobra.Command, opts *PluginOptions) {
 
 }
 
-func main() {
+func RootCmd(backend PwManager, example string) *cobra.Command {
+
+	name := backend.FullPluginName()
 
 	rootCmd := &cobra.Command{
-		Use:     "age-plugin-pwmanager",
-		Long:    "age-plugin-pwm is a tool to generate age compatible identities backed by SSH keys stored in a password manager",
+		Use:     name,
+		Long:    fmt.Sprintf("%s is a tool to generate age compatible identities backed by SSH keys stored in a password manager", name),
 		Example: example,
 		RunE:    RunPlugin,
 	}
 
+	pwManager = backend
 	pluginFlags(rootCmd, &pluginOptions)
-
-	if err := rootCmd.Execute(); err != nil {
-		log.Fatal(err)
-	}
-
+	return rootCmd
 }

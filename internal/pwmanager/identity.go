@@ -1,4 +1,4 @@
-package plugin
+package pwmanager
 
 import (
 	"bytes"
@@ -15,9 +15,9 @@ import (
 )
 
 type Identity struct {
-	Version    uint8
-	PubKey     ssh.PublicKey
-	privateKey []byte
+	Version uint8
+	PubKey  ssh.PublicKey
+	PrivKey []byte
 }
 
 func (i *Identity) Serialize() []any {
@@ -29,7 +29,7 @@ func (i *Identity) Recipient() *Recipient {
 }
 
 func (i *Identity) Unwrap(stanzas []*age.Stanza) (fileKey []byte, err error) {
-	ageIdentity, err := agessh.ParseIdentity(i.privateKey)
+	ageIdentity, err := agessh.ParseIdentity(i.PrivKey)
 	if err != nil {
 		return nil, err
 	}
@@ -62,9 +62,9 @@ func NewIdentity(privateKey []byte) (*Identity, error) {
 	}
 
 	identity := &Identity{
-		Version:    1,
-		PubKey:     signer.PublicKey(),
-		privateKey: privateKey,
+		Version: 1,
+		PubKey:  signer.PublicKey(),
+		PrivKey: privateKey,
 	}
 
 	return identity, nil
@@ -78,7 +78,7 @@ func EncodeIdentity(i *Identity) string {
 
 	binary.Write(&b, binary.BigEndian, i.PubKey.Marshal())
 
-	return page.EncodeIdentity(PluginName, b.Bytes())
+	return page.EncodeIdentity(pwManager.PluginName(), b.Bytes())
 }
 
 var (

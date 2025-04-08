@@ -1,4 +1,4 @@
-package plugin
+package main
 
 import (
 	"bufio"
@@ -13,8 +13,17 @@ import (
 	"strings"
 
 	page "filippo.io/age/plugin"
+	pw "github.com/Enzyme/age-plugin-pwmanager/internal/pwmanager"
 	"golang.org/x/crypto/ssh"
 )
+
+func (bw Bitwarden) PluginName() string {
+	return "bitwarden"
+}
+
+func (bw Bitwarden) FullPluginName() string {
+	return "age-plugin-bitwarden"
+}
 
 type Bitwarden struct{}
 
@@ -40,8 +49,8 @@ type BwSshItem struct {
 	// CollectionIds []interface{} `json:"collectionIds"`
 }
 
-func (bwi BwSshItem) toIdentity() (*Identity, error) {
-	return NewIdentity([]byte(bwi.SSHKey.PrivateKey))
+func (bwi BwSshItem) toIdentity() (*pw.Identity, error) {
+	return pw.NewIdentity([]byte(bwi.SSHKey.PrivateKey))
 }
 
 func (bw Bitwarden) BwSshItems() (items []BwSshItem, err error) {
@@ -71,16 +80,16 @@ func (bw Bitwarden) BwSshItems() (items []BwSshItem, err error) {
 	return
 }
 
-func (bw Bitwarden) DecodeIdentity(pluginIdentityString string) (*Identity, error) {
+func (bw Bitwarden) DecodeIdentity(pluginIdentityString string) (*pw.Identity, error) {
 	log.Println("Trying to decode string:", pluginIdentityString)
 
-	var key Identity
+	var key pw.Identity
 
 	name, b, err := page.ParseIdentity(pluginIdentityString)
 	if err != nil {
 		return nil, err
 	}
-	if name != PluginName {
+	if name != bw.PluginName() {
 		return nil, fmt.Errorf("invalid hrp")
 	}
 	r := bytes.NewBuffer(b)
@@ -104,11 +113,10 @@ func (bw Bitwarden) DecodeIdentity(pluginIdentityString string) (*Identity, erro
 
 	// Get fingerprint of public key and try to find it in the vault
 	fingerprint := ssh.FingerprintSHA256(publicKey)
-	Log.Printf("fingerprint=%s", fingerprint)
 
 	for _, k := range keys {
 		if fingerprint == k.SSHKey.KeyFingerprint {
-			key.privateKey = []byte(k.SSHKey.PrivateKey)
+			key.PrivKey = []byte(k.SSHKey.PrivateKey)
 			return &key, nil
 		}
 	}
@@ -116,10 +124,9 @@ func (bw Bitwarden) DecodeIdentity(pluginIdentityString string) (*Identity, erro
 	return nil, errors.New("Unable to find key")
 }
 
-func (bw Bitwarden) NewDefaultIdentity() (*DefaultIdentity, error) {
+func (bw Bitwarden) NewDefaultIdentity() (*pw.DefaultIdentity, error) {
 
-	d := new(DefaultIdentity)
-	identities := []Identity{}
+	identities := []pw.Identity{}
 
 	allkeys, err := bw.BwSshItems()
 	if err != nil {
@@ -127,14 +134,14 @@ func (bw Bitwarden) NewDefaultIdentity() (*DefaultIdentity, error) {
 	}
 
 	for _, key := range allkeys {
-		i, err := NewIdentity([]byte(key.SSHKey.PrivateKey))
+		i, err := pw.NewIdentity([]byte(key.SSHKey.PrivateKey))
 		if err != nil {
 			return nil, err
 		}
 		identities = append(identities, *i)
 	}
 
-	d.identities = identities
+	d := pw.NewDefaultIdentity(identities)
 	return d, nil
 }
 
@@ -157,7 +164,7 @@ func (bw Bitwarden) MarshalAllRecipients() (out string, err error) {
 	return
 }
 
-func (bw Bitwarden) CreateIdentityFromPath(keyRef string) (*Identity, error) {
+func (bw Bitwarden) CreateIdentityFromPath(keyRef string) (*pw.Identity, error) {
 
 	items, err := bw.BwSshItems()
 	if err != nil {
@@ -174,7 +181,7 @@ func (bw Bitwarden) CreateIdentityFromPath(keyRef string) (*Identity, error) {
 	return nil, errors.New("No matching idententy found for: " + keyRef)
 }
 
-func (bw Bitwarden) ParseIdentity(f io.Reader) (*Identity, error) {
+func (bw Bitwarden) ParseIdentity(f io.Reader) (*pw.Identity, error) {
 	// Same parser as age
 	const privateKeySizeLimit = 1 << 24 // 16 MiB
 	scanner := bufio.NewScanner(io.LimitReader(f, privateKeySizeLimit))
