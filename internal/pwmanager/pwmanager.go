@@ -123,7 +123,6 @@ func RunPlugin(cmd *cobra.Command, args []string) error {
 			log.Println("someone passed default identity")
 			// someone passed the default identity using `age --decrypt -j op`
 			if data == nil {
-				log.Println("NO DATA")
 				return pwManager.NewDefaultIdentity()
 			}
 

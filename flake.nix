@@ -49,7 +49,7 @@
 
         devShells.default = pkgs.mkShell {
           buildInputs = builtins.attrValues {
-            inherit (pkgs) go gopls go-tools bitwarden-cli _1password-cli;
+            inherit (pkgs) go gopls go-tools bitwarden-cli; 
             inherit (self'.packages) age age-plugin-pwmanager;
           };
         };

@@ -57,16 +57,22 @@ func (bw Bitwarden) BwSshItems() (items []BwSshItem, err error) {
 
 	var allItems = []BwSshItem{}
 
-	cmd := exec.Command("bw", "list", "items", "--raw")
+	cmd := exec.Command("bw", "list", "items", "--nointeraction", "--raw")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
 
 	output, err := cmd.Output()
+
 	if err != nil {
-		log.Println("Error executing bw-cli")
+		log.Printf("Error executing bw-cli: %v\n", err)
+		log.Printf("Stderr: %s\n", stderr.String())
+		log.Printf("Make sure you are logged in (i.e. `BW_SESSION` environment variable is correctly set)")
 		return items, err
 	}
 
 	if err := json.Unmarshal(output, &allItems); err != nil {
-		log.Println("Error parsing bw output", string(output))
+		log.Println("Error parsing bw output")
+		log.Printf("Stderr: %s\n", stderr.String())
 		return items, err
 	}
 
