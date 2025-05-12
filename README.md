@@ -32,7 +32,8 @@ The actual plugin is available as:
 $ nix run github:Enzime/age-plugin-pwmanager
 ```
 
-Or you can enter a shell environment that provides both `age` and `age-plugin-pwmanager`:
+Or you can enter a shell environment that provides both `age` and `age-plugin-*`
+for all supported backends:
 
 ```
 $ nix shell github:Enzime/age-plugin-pwmanager
@@ -40,24 +41,22 @@ $ nix shell github:Enzime/age-plugin-pwmanager
 
 ## Installation
 
-You can build the `age-plugin-pwmanager` binary using Nix:
+You can build the `age-plugin-*` binaries using Nix:
 
 ```sh
-$ nix build github:Enzime/age-plugin-pwmanager
+$ nix build github:Enzime/age-plugin-1p
+$ nix build github:Enzime/age-plugin-bitwarden
 ```
 
 Which can then be copied or symlinked to your `PATH`
 
 
 ## Usage
-0. Set your password manager backend.
-The environment variable `AGE_PW_BACKEND` controls which password manager will
-be used. Set either `AGE_PW_BACKEND=1password` or `AGE_PW_BACKEND=bitwarden`.
 
 1. List all the public keys in OpenSSH's `authorized_key` format:
 
 ```sh
-$ age-plugin-pwmanager --print-recipients
+$ age-plugin-1p --print-recipients
 op://Personal/SSH key/public key: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINKZfejb9htpSB5K9p0RuEowErkba2BMKaze93ZVkQIE
 ```
 
@@ -71,10 +70,12 @@ You can replace the recipient with `"$(op read "op://Personal/SSH key/public key
 
 3. Decrypt file with:
 
-`age-plugin-pwmanager` can automatically find the correct SSH key for decryption if you specify `-j 1p`:
+`age` can automatically find the correct SSH key for decryption. Use `-j <name>`
+to specifify the backend to be used.
 
 ```sh
-$ age --decrypt -j 1p -o - secret.age
+$ age --decrypt -j 1p -o - secret.age # Use 1Password
+$ age --decrypt -j bw -o - secret.age # Use Bitwarden
 Hello, world!
 ```
 
