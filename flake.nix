@@ -52,6 +52,10 @@
             inherit (pkgs) go gopls go-tools bitwarden-cli; 
             inherit (self'.packages) age age-plugin-pwmanager;
           };
+
+
+          shellHook = "AGEDEBUG=plugin";
+
         };
       };
     };
